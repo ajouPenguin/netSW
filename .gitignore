@@ -1,0 +1,6 @@
+*.txt
+*.bin
+*.o
+listCtrl
+Makefile
+
