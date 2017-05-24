@@ -6,20 +6,65 @@
 
 using namespace std;
 
-int main(int argc, char* args[])
+int findURL(MYSQL *mysql, char* list, char* string)
 {
-  MYSQL mysql;
+  char query[255];
+  MYSQL_RES *sql_result;
+
+  sprintf(query, "select * from %s where %s", list, string);
+  printf("%s\n", query);
+  if(mysql_query(mysql, query))
+  {
+     printf("%s\n", mysql_error(mysql));
+     return 0;
+  }
+
+  sql_result = mysql_store_result(mysql);
+
+  return 1;
+}
+
+int main(int argc, char *args[])
+{
+  MYSQL mysql, *conn;
+  MYSQL_RES* res;
+  MYSQL_ROW row;
+  int fields = 0, i;
+  int result;
 
   mysql_init(&mysql);
-
-  if(!mysql_real_connect(&mysql, NULL, "root", "tiger1343", NULL, 3306, (char *)NULL, 0))
+  
+  if(!(conn = mysql_real_connect(&mysql, NULL, "root", "tiger1343", "netsw", 3306, (char *)NULL, 0)))
   {
     printf("%s\n", mysql_error(&mysql));
+    printf("connect error!\n");
     exit(0);
   }
 
-  printf("MYSQL connection is successful");
+  printf("MYSQL connection is successful\n");
 
+  result = findURL(conn, "blacklist", "url=\'192.168.1.1\'");
+  printf("result : %d\n", result);
+  if(result == 1)
+  {
+    res = mysql_store_result(conn);
+    if(res == NULL)
+      printf("No Result.\n");
+    else
+    {
+      fields = mysql_num_fields(res);
+      printf("fields : %d\n", fields);
+
+      while((row = mysql_fetch_row(res)))	// segmentation fault... mysql_fetch_row(res)
+      {  
+        for(i = 0; i < fields; ++i)
+          printf("%s ", row[i]);
+        printf("\n");
+      }
+    }
+  }
+
+  mysql_free_result(res);
   mysql_close(&mysql);
   return 0;
 }
