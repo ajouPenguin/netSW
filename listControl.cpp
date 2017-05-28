@@ -1,11 +1,4 @@
-#include <cstdio>
-#include <iostream>
-#include <queue>
-#include <pthread.h>
-#include <mysql.h>
-#include <memory.h>
-
-using namespace std;
+#include "listControl.h"
 
 int findURL(MYSQL *mysql, char* list, char* string)
 {
@@ -22,7 +15,7 @@ int findURL(MYSQL *mysql, char* list, char* string)
   return 1;
 }
 
-int insertUrl(MYSQL *mysql, char* list, char* serverIP)
+int insertURL(MYSQL *mysql, char* list, char* serverIP)
 {
     char query[255];
 
@@ -37,7 +30,7 @@ int insertUrl(MYSQL *mysql, char* list, char* serverIP)
     return 1;
 }
 
-int deleteUrl(MYSQL *mysql, char* list, char* serverIP)
+int deleteURL(MYSQL *mysql, char* list, char* serverIP)
 {
     char query[255];
     MYSQL_RES *sql_result;
@@ -72,7 +65,7 @@ int deleteUrl(MYSQL *mysql, char* list, char* serverIP)
     }
     return 0;
 }
-
+/*
 int main(int argc, char *args[])
 {
   MYSQL mysql, *conn;
@@ -116,4 +109,4 @@ int main(int argc, char *args[])
   mysql_free_result(res);
   mysql_close(&mysql);
   return 0;
-}
+}*/
