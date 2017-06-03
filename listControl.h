@@ -1,13 +1,10 @@
-#include <cstdio>
+#include <stdio.h>
 #include <mysql.h>
-#include <iostream>
 #include <mysql.h>
 #include <memory.h>
-#include <string>
-
-using namespace std;
 
 #define CHARMAX 255
+#define REASON_SIZE 500
 
 using namespace std;
 
@@ -22,5 +19,5 @@ struct listItem
         char url[CHARMAX];
         unsigned int date;
         char status[8];
-	string reason;
+	char reason[REASON_SIZE];
 };
