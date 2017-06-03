@@ -134,7 +134,7 @@ void SIGIOHandler(int signalType)
 
 	returnVal == 0 ? strcpy(reason, "malware found") : strcpy(reason, "malware not found");
 
-        sprintf(sendBuf, "\"response\" : {\n\"status\" : \"%s\",\n\"reason\" : \"%s\",\n\"checksum\" : \"%s\"}",
+        sprintf(sendBuf, "{\n\"response\" : {\n\"status\" : \"%s\",\n\"reason\" : \"%s\",\n\"checksum\" : \"%s\"\n}\n}",
                 returnVal == 0 ? "false" : "true", reason, checkSum);
 
         if (sendto(sock, sendBuf, sizeof(sendBuf), 0, (struct sockaddr *)
