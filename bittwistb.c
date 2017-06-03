@@ -19,6 +19,7 @@
 */
 
 #include "bittwistb.h"
+#include "listControl.h"
 
 char *program_name;
 

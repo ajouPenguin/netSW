@@ -95,6 +95,9 @@ void SIGIOHandler(int signalType)
     char sendBuf[BUFSIZE] = {0};
     char* host;
     char* cookies;
+    int returnVal = 0;
+    char reason[20];
+    char *checkSum = "a531912d4dfb12a451faeed";
 
     srand(time(NULL));
 
@@ -127,7 +130,12 @@ void SIGIOHandler(int signalType)
 
         printf("Handling client %s\n", inet_ntoa(echoClntAddr.sin_addr));
 
-        sprintf(sendBuf, "%s", rand() % 2 == 0 ? "false" : "true");
+        returnVal = rand() % 2;
+
+	returnVal == 0 ? strcpy(reason, "malware found") : strcpy(reason, "malware not found");
+
+        sprintf(sendBuf, "\"response\" : {\n\"status\" : \"%s\",\n\"reason\" : \"%s\",\n\"checksum\" : \"%s\"}",
+                returnVal == 0 ? "false" : "true", reason, checkSum);
 
         if (sendto(sock, sendBuf, sizeof(sendBuf), 0, (struct sockaddr *)
               &echoClntAddr, sizeof(echoClntAddr)) != sizeof(sendBuf))

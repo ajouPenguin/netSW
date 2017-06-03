@@ -232,6 +232,8 @@ struct tcphdr {
     u_short th_urp;     /* urgent pointer */
 };
 
+#define URL_MAX_LEN 500    // URL Length
+
 /*
  * UDP header.
  * Per RFC 768, September, 1981.
