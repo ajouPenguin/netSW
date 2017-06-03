@@ -3,5 +3,4 @@
 *.o
 *.out
 listCtrl
-Makefile
 .DS_Store
