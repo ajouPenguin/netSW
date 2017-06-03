@@ -24,7 +24,7 @@ struct listItem
 {
         int idx;
         char url[CHARMAX];
-        unsigned int date;
+        char date[10];
         char status[8];
 	string reason;
 };
