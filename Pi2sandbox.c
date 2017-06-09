@@ -88,7 +88,7 @@ void pi2sand(char url[], char cookie[]){
     	}
     	printf("\n");
 
-    sprintf(query, "\'%s\',%s,\'%s\',%s,%s", url, "now()", status, reason, checksum);
+    sprintf(query, "\'%s\',%s,\'%s\',%s,%s", url, "now()", status, reason);
     printf("%s", query);
     //insertURL(mysql, black, query);
 
