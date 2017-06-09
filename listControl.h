@@ -18,7 +18,7 @@ struct listItem
 {
     int idx;
     char url[CHARMAX];
-    MYSQL_TIME date;
+    struct MYSQL_TIME date;
     char status[8];
 	  char reason[255];
 };
