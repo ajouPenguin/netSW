@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <listControl.h>
 
 #define MAXLEN 1024
 
@@ -19,8 +20,13 @@ void pi2sand(char url[], char cookie[]){
 	char buf[MAXLEN]; 
 	unsigned int bufLen;
 	int bytesRcvd; /* Bytes read in single recv() */
-	int status;
-	char* reason, checksum;
+	
+	char* temp;
+     char status[MAXLEN];
+	char reason[MAXLEN];
+	char checksum[MAXLEN];
+     char query[MAXLEN];
+
 	servIP = "192.168.200.119"; /* server IP address (dotted quad) */
 
 	echoServPort = 9700; /* port */
@@ -55,27 +61,36 @@ void pi2sand(char url[], char cookie[]){
 	buf[bytesRcvd] = '\0';
 	printf("Receive message: %s\n", buf);
 	
-	if(strstr(buf, "true") != NULL){
-		status = true;
-	}
-	else status = false;
-	
-	reason = strstr(buf, "reason") + 9;
-	checksum = strstr(buf, "checksum") + 11; 
 
-    	printf("\nreason : ");
-    	for(i = 0; reason[i]!= ','; i++)
-    	{
-    	 	printf("%c", reason[i]);
-    	}
+    if(strstr(buf, "true") != NULL){
+		strcpy(status, "true");
+	}
+	else strcpy(status, "false");
+
+	printf("\n%s\n", status);
+
+    temp = strstr(buf, "reason") + 9;
+    int i;
+    printf("\nreason : ");
+    for(i = 0; temp[i]!= ','; i++)
+    {
+        printf("%c", temp[i]);
+        reason[i] = temp[i];
+    }
+
+	temp = strstr(buf, "checksum") + 11; 
 
     	printf("\nchecksum : ");
-    	for(i = 0; checksum[i] != '}'; i++)
+    	for(i = 0; temp[i] != '}'; i++)
     	{
-    	 	printf("%c", checksum[i]);
+            printf("%c", temp[i]);
+            checksum[i] = temp[i];
     	}
     	printf("\n");
-	
+
+    sprintf(query, "\'%s\',%s,\'%s\',%s,%s", url, "now()", status, reason, checksum);
+    printf("%s", query);
+    //insertURL(mysql, black, query);
+
 	close (sock);
-	
 }
