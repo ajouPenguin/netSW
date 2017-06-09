@@ -4,16 +4,10 @@
 
 #include <stdio.h>
 #include <mysql.h>
-//#include <iostream>
 #include <mysql.h>
 #include <memory.h>
-#include <string>
-
-using namespace std;
 
 #define CHARMAX 255
-
-using namespace std;
 
 int findURL(MYSQL *mysql, char* list, char* string);
 int insertURL(MYSQL *mysql, char* list, char* serverIP);
@@ -22,11 +16,11 @@ int deleteURL(MYSQL *mysql, char* list, char* serverIP);
 
 struct listItem
 {
-        int idx;
-        char url[CHARMAX];
-        char date[10];
-        char status[8];
-	string reason;
+    int idx;
+    char url[CHARMAX];
+    MYSQL_TIME date;
+    char status[8];
+	  char reason[255];
 };
 
 #endif
