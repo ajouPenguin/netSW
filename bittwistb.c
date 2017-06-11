@@ -1,24 +1,5 @@
-/*
-* bittwistb - pcap based ethernet bridge
-* Copyright (C) 2007 Addy Yeow Chin Heng <ayeowch@gmail.com>
-*
-* This program is free software; you can redistribute it and/or
-* modify it under the terms of the GNU General Public License
-* as published by the Free Software Foundation; either version 2
-* of the License, or any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program; if not, write to the Free Software
-* Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-*
-*/
-
 #include "bittwistb.h"
+#include "pktcheck.h"
 
 char *program_name;
 
@@ -51,7 +32,6 @@ int main(int argc, char **argv)
     pcap_if_t *devptr;
     int i, j;
     char *devices = NULL;
-    pthread_t blacklist_thread; // AAAA
 
     if ((cp = strrchr(argv[0], '/')) != NULL)
     program_name = cp + 1;
@@ -86,8 +66,7 @@ int main(int argc, char **argv)
         }
     }
 
-    if (devices == NULL)
-    error("interfaces not specified");
+    if (devices == NULL) error("interfaces not specified");
 
     cp = (char *)strtok(devices, ",");
     i = 0;
@@ -141,52 +120,35 @@ int main(int argc, char **argv)
     notice("gettimeofday(): %s", strerror(errno));
 
 /*
+blist[0].ip_src = inet_addr("192.168.222.0");
+blist[0].ip_dst = inet_addr("192.168.222.102");
+blist[0].ip_src_mask = inet_addr("255.255.255.0");
+blist[0].ip_dst_mask = inet_addr("255.255.255.255");
+blist[0].l4_proto = IPPROTO_TCP;
+blist[0].port_src = 0xFFFF;
+blist[0].port_dst = 33333;
 
-    {   //192.168.1.0/24 192.168.1.2/32 TCP * 21
-        inet_addr("192.168.222.0"), inet_addr("255.255.255.0"),
-        inet_addr("192.168.222.102"), inet_addr("255.255.255.255"),
-        IPPROTO_TCP, 0xFFFF, 33333
-    }, {//192.168.1.0/24 192.168.1.2/32 ICMP            // every icmp
-        inet_addr("192.168.222.0"), inet_addr("255.255.255.0"),
-        inet_addr("192.168.222.102"), inet_addr("255.255.255.255"),
-        IPPROTO_ICMP, 0xFFFF, 0xFFFF
-    }, {//192.168.1.0/24 192.168.1.2/32 UDP * 69
-        inet_addr("192.168.222.0"), inet_addr("255.255.255.0"),
-        inet_addr("192.168.222.102"), inet_addr("255.255.255.255"),
-        IPPROTO_UDP, 0xFFFF, 33334
-    }
+blist[1].ip_src = inet_addr("192.168.222.0");
+blist[1].ip_dst = inet_addr("192.168.222.102");
+blist[1].ip_src_mask = inet_addr("255.255.255.0");
+blist[1].ip_dst_mask = inet_addr("255.255.255.255");
+blist[1].l4_proto = IPPROTO_ICMP;
+blist[1].port_src = 0xFFFF;
+blist[1].port_dst = 0xFFFF;
+
+blist[2].ip_src = inet_addr("192.168.222.0");
+blist[2].ip_dst = inet_addr("192.168.222.102");
+blist[2].ip_src_mask = inet_addr("255.255.255.0");
+blist[2].ip_dst_mask = inet_addr("255.255.255.255");
+blist[2].l4_proto = IPPROTO_UDP;
+blist[2].port_src = 0xFFFF;
+blist[2].port_dst = 33334;
+
+blist_size = 3;
 */
-    blist[0].ip_src = inet_addr("192.168.222.0");
-    blist[0].ip_dst = inet_addr("192.168.222.102");
-    blist[0].ip_src_mask = inet_addr("255.255.255.0");
-    blist[0].ip_dst_mask = inet_addr("255.255.255.255");
-    blist[0].l4_proto = IPPROTO_TCP;
-    blist[0].port_src = 0xFFFF;
-    blist[0].port_dst = 33333;
+bridge_on(); /* run bridge */
 
-    blist[1].ip_src = inet_addr("192.168.222.0");
-    blist[1].ip_dst = inet_addr("192.168.222.102");
-    blist[1].ip_src_mask = inet_addr("255.255.255.0");
-    blist[1].ip_dst_mask = inet_addr("255.255.255.255");
-    blist[1].l4_proto = IPPROTO_ICMP;
-    blist[1].port_src = 0xFFFF;
-    blist[1].port_dst = 0xFFFF;
-
-    blist[2].ip_src = inet_addr("192.168.222.0");
-    blist[2].ip_dst = inet_addr("192.168.222.102");
-    blist[2].ip_src_mask = inet_addr("255.255.255.0");
-    blist[2].ip_dst_mask = inet_addr("255.255.255.255");
-    blist[2].l4_proto = IPPROTO_UDP;
-    blist[2].port_src = 0xFFFF;
-    blist[2].port_dst = 33334;
-
-    blist_size = 3;
-
-    pthread_create(&blacklist_thread, NULL, &blacklist_control, (void *) 0); // AAAA
-
-    bridge_on(); /* run bridge */
-
-    exit(EXIT_SUCCESS);
+exit(EXIT_SUCCESS);
 }
 
 void bridge_on(void)
@@ -273,14 +235,7 @@ void bridge_on(void)
     }
 }
 
-void bridge_fwd(u_char *port, const struct pcap_pkthdr *header, const u_char *pkt_data)
-{
-    /*
-    * Ethernet header (14 bytes)
-    * 1. destination MAC (6 bytes)
-    * 2. source MAC (6 bytes)
-    * 3. type (2 bytes)
-    */
+void bridge_fwd(u_char *port, const struct pcap_pkthdr *header, const u_char *pkt_data) {
     struct ether_header *eth_hdr;
     int index; /* hash table index */
     int i;
@@ -390,29 +345,34 @@ void bridge_fwd(u_char *port, const struct pcap_pkthdr *header, const u_char *pk
         }
     }
 
-    outport = check_blacklist(outport, header, (u_char *) pkt_data);
-
     if (outport != 0) {
-        send_packets(outport,
-            sport,
-            (const struct ether_addr *)eth_hdr->ether_dhost,
-            (const struct ether_addr *)eth_hdr->ether_shost,
-            pkt_data, header->caplen
-        );
+        switch(check_packet(outport, header, (u_char *) pkt_data)) {
+            case 1: // on blacklist
+                break;
+            case 2: // on whitelist
+                break;
+            case 3: // on sand to sandbox
+                break;
+            default:
+                send_packets(outport,
+                    sport,
+                    (const struct ether_addr *)eth_hdr->ether_dhost,
+                    (const struct ether_addr *)eth_hdr->ether_shost,
+                    pkt_data, header->caplen
+                );
+        }
     }
-    /* END BRIDGE FORWARDING SECTION */
-
     free(eth_hdr); eth_hdr = NULL;
     return;
 }
 
-void send_packets(int outport,
-    int sport,
-    const struct ether_addr *ether_dhost,
-    const struct ether_addr *ether_shost,
-    const u_char *pkt_data,
-    int pkt_len
-)
+void send_packets(outport, sport, ether_dhost, ether_shost, pkt_data, pkt_len)
+int outport;
+int sport;
+const struct ether_addr *ether_dhost;
+const struct ether_addr *ether_shost;
+const u_char *pkt_data;
+int pkt_len;
 {
     int start, end;
     int i, j;
@@ -510,24 +470,8 @@ int hash_alarm(unsigned int seconds)
     return (setitimer(ITIMER_REAL, &new, &old));
 }
 
-/*
-* looks like BSD does not have SIOCGIFHWADDR,
-* let me know if you have a portable gethwaddr(), i.e. works for both BSD and Linux systems
-*/
 #ifndef SIOCGIFHWADDR
-/*
-* Reference: getmac.c from bridged by Keisuke Uehara(kei@wide.ad.jp)
-*
-* Copyright(c) 1999
-* Keisuke UEHARA(kei@wide.ad.jp)
-* All rights reserved.
-*
-*
-* Copyright(c) 1998,1999
-* Masahiro ISHIYAMA(masahiro@isl.rdc.toshiba.co.jp)
-* All rights reserved.
-*
-*/
+
 #define ALLSET(flag, bits) (((flag) & (bits)) == (bits))
 int gethwaddr(struct ether_addr *ether_addr, char *device)
 {
@@ -619,13 +563,6 @@ void notice(const char *fmt, ...)
     }
 }
 
-/*
-* Reference: tcpdump's util.c
-*
-* Copyright (c) 1990, 1991, 1993, 1994, 1995, 1996, 1997
-*      The Regents of the University of California.  All rights reserved.
-*
-*/
 void error(const char *fmt, ...)
 {
     va_list ap;
@@ -657,112 +594,3 @@ void usage(void)
     program_name, BITTWISTB_VERSION, pcap_lib_version(), program_name, PORT_MIN, PORT_MAX);
     exit(EXIT_SUCCESS);
 }
-
-// AAAA START
-
-int check_blacklist(int o, const struct pcap_pkthdr *h, u_char *p) {
-    struct ether_header eth_hdr;
-    struct ip           ip_hdr;
-    struct icmphdr      icmp_hdr;
-    struct tcphdr       tcp_hdr;
-    struct udphdr       udp_hdr;
-
-    char *ptr;
-    int remain;
-
-    memset(&eth_hdr,    0, ETHER_HDR_LEN);
-    memset(&ip_hdr,     0,    IP_HDR_LEN);
-    memset(&icmp_hdr,   0,  ICMP_HDR_LEN);
-    memset(&tcp_hdr,    0,   TCP_HDR_LEN);
-    memset(&udp_hdr,    0,   UDP_HDR_LEN);
-
-#define MOV_PTR(x) \
-ptr		+= (x); \
-remain	-= (x); \
-if (remain == 0) return o;
-
-    ptr = p;
-    remain = h->caplen;
-
-    memcpy(&eth_hdr, ptr, ETHER_HDR_LEN);
-
-    if (ntohs(eth_hdr.ether_type) == ETHERTYPE_IP) {
-        /*puts("ETHERNET");*/
-    } else if (ntohs(eth_hdr.ether_type) == ETHERTYPE_ARP) {
-        /*puts("ARP");*/
-    } else {
-        goto end;
-    }
-
-    MOV_PTR(ETHER_HDR_LEN);
-    if (ntohs(eth_hdr.ether_type) == ETHERTYPE_IP) {
-        memcpy(&ip_hdr, ptr, IP_HDR_LEN);
-        //printf("ip_hl %d\n", ip_hdr.ip_hl * 4);
-
-
-        /*puts("ETHERNET");*/
-    } else if (ntohs(eth_hdr.ether_type) == ETHERTYPE_ARP) {
-        /*puts("ARP");*/
-        goto end;
-    }
-
-    MOV_PTR(ip_hdr.ip_hl * 4);
-    if (ip_hdr.ip_p == IPPROTO_ICMP) {
-
-    } else if (ip_hdr.ip_p == IPPROTO_TCP) {
-        memcpy(&tcp_hdr, ptr, TCP_HDR_LEN);
-        if (ntohs(tcp_hdr.th_dport) == 80) {
-            MOV_PTR(tcp_hdr.th_off * 4);
-            hexdump(ptr, remain);
-        }
-    } else if (ip_hdr.ip_p == IPPROTO_UDP) {
-
-    } else {
-        goto end;
-    }
-
-
-
-
-    end:
-    return o;
-}
-
-void *blacklist_control(void *arg) {
-    while (1) {
-        scanf(" %d", &blacklist_flag);
-        printf("blacklist_control: %d\n", blacklist_flag);
-    }
-	pthread_exit((void *) 0);
-}
-
-void hexdump(const void* data, size_t size) {
-	char ascii[17];
-	size_t i, j;
-	ascii[16] = '\0';
-	for (i = 0; i < size; ++i) {
-		printf("%02X ", ((unsigned char*)data)[i]);
-		if (((unsigned char*)data)[i] >= ' ' && ((unsigned char*)data)[i] <= '~') {
-			ascii[i % 16] = ((unsigned char*)data)[i];
-		} else {
-			ascii[i % 16] = '.';
-		}
-		if ((i+1) % 8 == 0 || i+1 == size) {
-			printf(" ");
-			if ((i+1) % 16 == 0) {
-				printf("|  %s \n", ascii);
-			} else if (i+1 == size) {
-				ascii[(i+1) % 16] = '\0';
-				if ((i+1) % 16 <= 8) {
-					printf(" ");
-				}
-				for (j = (i+1) % 16; j < 16; ++j) {
-					printf("   ");
-				}
-				printf("|  %s \n", ascii);
-			}
-		}
-	}
-}
-
-// AAAA END

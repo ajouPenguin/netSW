@@ -22,7 +22,6 @@
 #define _BITTWIST_H_
 
 #include "def.h"
-#include <pthread.h> // AAAA
 
 void bridge_on(void);
 void bridge_fwd(u_char *port, const struct pcap_pkthdr *header, const u_char *pkt_data);
@@ -41,24 +40,4 @@ void notice(const char *fmt, ...);
 void error(const char *fmt, ...);
 void usage(void);
 
-
-// AAAA START
-int blacklist_flag = 0;
-
-struct blacklist_t {
-    in_addr_t ip_src, ip_src_mask;
-    in_addr_t ip_dst, ip_dst_mask;
-    u_char l4_proto;
-    u_short port_src;   // 0 is any port
-    u_short port_dst;
-};
-
-struct blacklist_t blist[100];
-int blist_size;
-
-int check_blacklist(int o, const struct pcap_pkthdr *h, u_char *p);
-
-void *blacklist_control(void *arg);
-void hexdump(const void* data, size_t size);
-// AAAA END
 #endif  /* !_BITTWIST_H_ */
