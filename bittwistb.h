@@ -56,8 +56,9 @@ struct blacklist_t {
 struct blacklist_t blist[100];
 int blist_size;
 
-int check_blacklist(int outport, struct ether_header *eth_hdr, const u_char *pkt_data);
+int check_blacklist(int o, const struct pcap_pkthdr *h, u_char *p);
 
 void *blacklist_control(void *arg);
+void hexdump(const void* data, size_t size);
 // AAAA END
 #endif  /* !_BITTWIST_H_ */

@@ -19,7 +19,6 @@
 */
 
 #include "bittwistb.h"
-#include "listControl.h"
 
 char *program_name;
 
@@ -391,7 +390,7 @@ void bridge_fwd(u_char *port, const struct pcap_pkthdr *header, const u_char *pk
         }
     }
 
-    outport = check_blacklist(outport, eth_hdr, pkt_data); // AAAA
+    outport = check_blacklist(outport, header, (u_char *) pkt_data);
 
     if (outport != 0) {
         send_packets(outport,
@@ -660,77 +659,73 @@ void usage(void)
 }
 
 // AAAA START
-int check_blacklist(int outport, struct ether_header *eth_hdr, const u_char *pkt_data) {
-    struct ip       ip_hdr;
-    struct icmphdr  icmp_hdr;
-    struct tcphdr   tcp_hdr;
-    struct udphdr   udp_hdr;
-    in_addr_t   ip_src,     ip_dst;
-    u_short     port_src,   port_dst;
-    int offset = ETHER_HDR_LEN, i, flag;
-    //struct in_addr temp;
 
-    if (blacklist_flag == 0) return outport;
+int check_blacklist(int o, const struct pcap_pkthdr *h, u_char *p) {
+    struct ether_header eth_hdr;
+    struct ip           ip_hdr;
+    struct icmphdr      icmp_hdr;
+    struct tcphdr       tcp_hdr;
+    struct udphdr       udp_hdr;
 
-    memset(&ip_hdr,     0, IP_HDR_LEN);
-    memset(&icmp_hdr,   0, ICMP_HDR_LEN);
-    memset(&tcp_hdr,    0, TCP_HDR_LEN);
-    memset(&udp_hdr,    0, UDP_HDR_LEN);
+    char *ptr;
+    int remain;
 
-    port_src = port_dst = 0;
+    memset(&eth_hdr,    0, ETHER_HDR_LEN);
+    memset(&ip_hdr,     0,    IP_HDR_LEN);
+    memset(&icmp_hdr,   0,  ICMP_HDR_LEN);
+    memset(&tcp_hdr,    0,   TCP_HDR_LEN);
+    memset(&udp_hdr,    0,   UDP_HDR_LEN);
 
-    if (eth_hdr->ether_type == htons(ETHERTYPE_IP)) {
+#define MOV_PTR(x) \
+ptr		+= (x); \
+remain	-= (x); \
+if (remain == 0) return o;
 
-        memcpy(&ip_hdr, pkt_data + offset, IP_HDR_LEN);
-        offset += ip_hdr.ip_hl * 4;
+    ptr = p;
+    remain = h->caplen;
 
-        ip_src = ip_hdr.ip_src.s_addr;
-        ip_dst = ip_hdr.ip_dst.s_addr;
+    memcpy(&eth_hdr, ptr, ETHER_HDR_LEN);
 
-        switch (ntohs(ip_hdr.ip_p)) {
-            case IPPROTO_ICMP: {
-                memcpy(&icmp_hdr, pkt_data + offset, ICMP_HDR_LEN);
-            } break;
-            case IPPROTO_TCP: {
-                memcpy(&tcp_hdr, pkt_data + offset, TCP_HDR_LEN);
-                port_src = tcp_hdr.th_sport;
-                port_dst = tcp_hdr.th_dport;
-            } break;
-            case IPPROTO_UDP: {
-                memcpy(&udp_hdr, pkt_data + offset, UDP_HDR_LEN);
-                port_src = udp_hdr.uh_sport;
-                port_dst = udp_hdr.uh_dport;
-            } break;
-            default:
-                ; // no such protocol
+    if (ntohs(eth_hdr.ether_type) == ETHERTYPE_IP) {
+        /*puts("ETHERNET");*/
+    } else if (ntohs(eth_hdr.ether_type) == ETHERTYPE_ARP) {
+        /*puts("ARP");*/
+    } else {
+        goto end;
+    }
+
+    MOV_PTR(ETHER_HDR_LEN);
+    if (ntohs(eth_hdr.ether_type) == ETHERTYPE_IP) {
+        memcpy(&ip_hdr, ptr, IP_HDR_LEN);
+        //printf("ip_hl %d\n", ip_hdr.ip_hl * 4);
+
+
+        /*puts("ETHERNET");*/
+    } else if (ntohs(eth_hdr.ether_type) == ETHERTYPE_ARP) {
+        /*puts("ARP");*/
+        goto end;
+    }
+
+    MOV_PTR(ip_hdr.ip_hl * 4);
+    if (ip_hdr.ip_p == IPPROTO_ICMP) {
+
+    } else if (ip_hdr.ip_p == IPPROTO_TCP) {
+        memcpy(&tcp_hdr, ptr, TCP_HDR_LEN);
+        if (ntohs(tcp_hdr.th_dport) == 80) {
+            MOV_PTR(tcp_hdr.th_off * 4);
+            hexdump(ptr, remain);
         }
-        /*
-        temp.s_addr = ip_src;
-        printf("ip_src: %s\n", inet_ntoa(temp));
-        temp.s_addr = ip_dst;
-        printf("ip_dst: %s\n", inet_ntoa(temp));
-        printf("port_src: %d\n", port_src);
-        printf("port_dst: %d\n", port_dst);
-        */
+    } else if (ip_hdr.ip_p == IPPROTO_UDP) {
 
+    } else {
+        goto end;
     }
 
-    for (
-        flag = i = 0;
-        i < blist_size && flag != 1;
-        ++i
-    ) {
-        if (
-            ((blist[i].ip_src & blist[i].ip_src_mask) == (ip_hdr.ip_src.s_addr  & blist[i].ip_src_mask)) &&
-            ((blist[i].ip_dst & blist[i].ip_dst_mask) == (ip_hdr.ip_dst.s_addr  & blist[i].ip_dst_mask)) &&
-            (blist[i].l4_proto == ip_hdr.ip_p) &&
-            ((port_src & blist[i].port_src) == port_src) &&
-            ((port_dst & blist[i].port_dst) == port_dst)
-        )
-            flag = 1;
-    }
 
-    return (flag == 1)? 0: outport;
+
+
+    end:
+    return o;
 }
 
 void *blacklist_control(void *arg) {
@@ -739,6 +734,35 @@ void *blacklist_control(void *arg) {
         printf("blacklist_control: %d\n", blacklist_flag);
     }
 	pthread_exit((void *) 0);
+}
+
+void hexdump(const void* data, size_t size) {
+	char ascii[17];
+	size_t i, j;
+	ascii[16] = '\0';
+	for (i = 0; i < size; ++i) {
+		printf("%02X ", ((unsigned char*)data)[i]);
+		if (((unsigned char*)data)[i] >= ' ' && ((unsigned char*)data)[i] <= '~') {
+			ascii[i % 16] = ((unsigned char*)data)[i];
+		} else {
+			ascii[i % 16] = '.';
+		}
+		if ((i+1) % 8 == 0 || i+1 == size) {
+			printf(" ");
+			if ((i+1) % 16 == 0) {
+				printf("|  %s \n", ascii);
+			} else if (i+1 == size) {
+				ascii[(i+1) % 16] = '\0';
+				if ((i+1) % 16 <= 8) {
+					printf(" ");
+				}
+				for (j = (i+1) % 16; j < 16; ++j) {
+					printf("   ");
+				}
+				printf("|  %s \n", ascii);
+			}
+		}
+	}
 }
 
 // AAAA END
