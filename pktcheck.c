@@ -1,5 +1,7 @@
 #include "pktcheck.h"
 
+struct http_request *http_req_ht[HTTP_REQ_HT_SIZE];
+
 int check_packet(o, h, p)
 int o;
 const struct pcap_pkthdr *h;
@@ -49,9 +51,9 @@ if (remain == 0) return o;
         goto end;
     }
 
-    if ((tcp_hdr.th_flags & TH_SYN) == TH_SYN ||
-        (tcp_hdr.th_flags & TH_FIN) == TH_FIN ||
-        (tcp_hdr.th_flags & TH_RST) == TH_RST) {
+#define CHECK_TCP_FLAG(x) ((tcp_hdr.th_flags & (x)) == (x))
+
+    if (CHECK_TCP_FLAG(TH_SYN) || CHECK_TCP_FLAG(TH_FIN) || CHECK_TCP_FLAG(TH_RST)) {
         goto end;
     }
     MOV_PTR(tcp_hdr.th_off * 4);
@@ -59,34 +61,92 @@ if (remain == 0) return o;
     if (remain == 0) {
         goto end;
     }
-    if ((tcp_hdr.th_flags & TH_PUSH) == TH_PUSH)
-        printf("PSH ");
-    if ((tcp_hdr.th_flags & TH_ACK) == TH_ACK)
-        printf("ACK ");
-    puts("");
-    hexdump(ptr, (remain >16)? 16: remain);
 
-    /*
-    ptr = packet content start
-    remain = packet content size
-    */
-    //hexdump(ptr, remain);
+    uint64_t temp = ((tcp_hdr.th_sport + ip_hdr.ip_src.s_addr) << 32LL) + (tcp_hdr.th_dport + ip_hdr.ip_dst.s_addr);
+#define CHECK_HTTP_METHOD(x) (strncmp(x, ptr, strlen(x)) == 0)
+#define CUR_HTTP_REQ_HT (http_req_ht[JumpConsistentHash(temp, HTTP_REQ_HT_SIZE)])
 
-    /*
-    {
-        char *url, *cookie;
-        url = cookie = NULL;
-        parse_http_header(&url, &cookie, ptr);
-        if (url != NULL) {
-            puts(url);
-            free(url);
-        }
-        if (cookie != NULL){
-            puts(cookie);
-            free(cookie);
+    if (CHECK_TCP_FLAG(TH_ACK)) {
+        if (CHECK_HTTP_METHOD("GET ") || CHECK_HTTP_METHOD("POST ")) {
+            struct http_request_t *cur;
+            struct pkt_set_t *pkt;
+            u_char *msg;
+            if (CUR_HTTP_REQ_HT != NULL) {
+                /* already exist... */
+                goto end;
+            }
+            cur = (struct http_request_t *) malloc(sizeof(struct http_request_t) * 1);
+            pkt = (struct pkt_set_t *) malloc(sizeof(struct pkt_set_t) * 1);
+            msg = (u_char *) calloc(remain + 1, sizeof(u_char));
+            strncpy(msg, ptr, remain);
+
+            pkt->h = h;
+            pkt->p = p;
+            pkt->next = NULL;
+
+            cur->pkt = cur->pkt_last = pkt;
+            cur->o = o;
+            cur->msg = msg;
+
+            CUR_HTTP_REQ_HT = cur;
+
+            puts("CRET");
+        } else if (CUR_HTTP_REQ_HT != NULL) {
+            struct http_request_t *cur;
+            struct pkt_set_t *pkt;
+            u_char *msg;
+
+            cur = CUR_HTTP_REQ_HT;
+
+            pkt = (struct pkt_set_t *) malloc(sizeof(struct pkt_set_t) * 1);
+            pkt->h = h;
+            pkt->p = p;
+            pkt->next = NULL;
+
+            cur->pkt_last->next = pkt;
+            cur->pkt_last = pkt;
+            /* cur->o = o; // maybe same o */
+            msg = cur->msg;
+            msg = realloc(msg, strlen(msg) + remain + 1);
+            strncat(msg, ptr, remain);
+            cur->msg = msg;
+
+            puts("UPDATE");
         }
     }
-    */
+
+    if (CHECK_TCP_FLAG(TH_PUSH)) {
+        struct http_request_t *cur;
+        struct pkt_set_t *pkt, *pkt2;
+        u_char *msg;
+        char *a, *b;
+
+        /* check http req*/
+        cur = CUR_HTTP_REQ_HT;
+        msg = cur->msg;
+        /*hexdump(msg, strlen(msg));*/
+        a = b = NULL;
+        parse_http_header(&a, &b, msg);
+        if (a != NULL) { puts(a); free(a); }
+        if (b != NULL) { puts(b); free(b); }
+
+        /* remove */
+        cur = CUR_HTTP_REQ_HT;
+        pkt = cur->pkt;
+        while (pkt->next != NULL) {
+            pkt2 = pkt->next;
+            free(pkt);
+            pkt = pkt2;
+        }
+        free(pkt);
+
+        msg = cur->msg;
+        free(msg);
+
+        free(cur);
+        CUR_HTTP_REQ_HT = NULL;
+        puts("DELE");
+    }
 
     end:
     return 0;
@@ -153,4 +213,14 @@ char *data;
     strcat(tmp, (const char *)host);
     strcat(tmp, (const char *)uri);
     *url = tmp;
+}
+
+int32_t JumpConsistentHash(uint64_t key, int32_t num_buckets) {
+    int32_t b = 1, j = 0;
+    while (j < num_buckets) {
+        b = j;
+        key = key * 2862933555777941757ULL + 1;
+        j = (b + 1) * ((double)(1LL << 31) / (double)((key >> 33) + 1));
+    }
+    return b;
 }
