@@ -1,6 +1,7 @@
 #include "pktcheck.h"
 
 struct http_request *http_req_ht[HTTP_REQ_HT_SIZE];
+#define CUR_HTTP_REQ_HT (http_req_ht[cur_idx])
 
 int check_packet(o, h, p)
 int o;
@@ -52,7 +53,11 @@ if (remain == 0) return o;
     }
 
 #define CHECK_TCP_FLAG(x) ((tcp_hdr.th_flags & (x)) == (x))
-
+#define NEW_PKT_SET \
+pkt = (struct pkt_set_t *) malloc(sizeof(struct pkt_set_t) * 1); \
+pkt->h = h; \
+pkt->p = p; \
+pkt->next = NULL; \
     if (CHECK_TCP_FLAG(TH_SYN) || CHECK_TCP_FLAG(TH_FIN) || CHECK_TCP_FLAG(TH_RST)) {
         goto end;
     }
@@ -62,10 +67,8 @@ if (remain == 0) return o;
         goto end;
     }
 
-    uint64_t temp = ((tcp_hdr.th_sport + ip_hdr.ip_src.s_addr) << 32LL) + (tcp_hdr.th_dport + ip_hdr.ip_dst.s_addr);
+    int cur_idx = JumpConsistentHash((((tcp_hdr.th_sport + ip_hdr.ip_src.s_addr) << 32LL) + (tcp_hdr.th_dport + ip_hdr.ip_dst.s_addr)), HTTP_REQ_HT_SIZE);
 #define CHECK_HTTP_METHOD(x) (strncmp(x, ptr, strlen(x)) == 0)
-#define CUR_HTTP_REQ_HT (http_req_ht[JumpConsistentHash(temp, HTTP_REQ_HT_SIZE)])
-
     if (CHECK_TCP_FLAG(TH_ACK)) {
         if (CHECK_HTTP_METHOD("GET ") || CHECK_HTTP_METHOD("POST ")) {
             struct http_request_t *cur;
@@ -76,13 +79,11 @@ if (remain == 0) return o;
                 goto end;
             }
             cur = (struct http_request_t *) malloc(sizeof(struct http_request_t) * 1);
-            pkt = (struct pkt_set_t *) malloc(sizeof(struct pkt_set_t) * 1);
+
             msg = (u_char *) calloc(remain + 1, sizeof(u_char));
             strncpy(msg, ptr, remain);
 
-            pkt->h = h;
-            pkt->p = p;
-            pkt->next = NULL;
+            NEW_PKT_SET;
 
             cur->pkt = cur->pkt_last = pkt;
             cur->o = o;
@@ -98,14 +99,13 @@ if (remain == 0) return o;
 
             cur = CUR_HTTP_REQ_HT;
 
-            pkt = (struct pkt_set_t *) malloc(sizeof(struct pkt_set_t) * 1);
-            pkt->h = h;
-            pkt->p = p;
-            pkt->next = NULL;
+            NEW_PKT_SET;
 
+            // append to last list
             cur->pkt_last->next = pkt;
             cur->pkt_last = pkt;
             /* cur->o = o; // maybe same o */
+
             msg = cur->msg;
             msg = realloc(msg, strlen(msg) + remain + 1);
             strncat(msg, ptr, remain);
@@ -117,7 +117,6 @@ if (remain == 0) return o;
 
     if (CHECK_TCP_FLAG(TH_PUSH)) {
         struct http_request_t *cur;
-        struct pkt_set_t *pkt, *pkt2;
         u_char *msg;
         char *a, *b;
 
@@ -130,22 +129,7 @@ if (remain == 0) return o;
         if (a != NULL) { puts(a); free(a); }
         if (b != NULL) { puts(b); free(b); }
 
-        /* remove */
-        cur = CUR_HTTP_REQ_HT;
-        pkt = cur->pkt;
-        while (pkt->next != NULL) {
-            pkt2 = pkt->next;
-            free(pkt);
-            pkt = pkt2;
-        }
-        free(pkt);
-
-        msg = cur->msg;
-        free(msg);
-
-        free(cur);
-        CUR_HTTP_REQ_HT = NULL;
-        puts("DELE");
+        del_http_req_ht(cur_idx);
     }
 
     end:
@@ -224,3 +208,40 @@ int32_t JumpConsistentHash(uint64_t key, int32_t num_buckets) {
     }
     return b;
 }
+
+
+void del_http_req_ht(int cur_idx) {
+    struct http_request_t *cur;
+    struct pkt_set_t *pkt, *pkt2;
+    u_char *msg;
+    char *a, *b;
+
+    cur = CUR_HTTP_REQ_HT;
+    pkt = cur->pkt;
+    while (pkt->next != NULL) {
+        pkt2 = pkt->next;
+        free(pkt);
+        pkt = pkt2;
+    }
+    free(pkt);
+
+    msg = cur->msg;
+    free(msg);
+
+    free(cur);
+    CUR_HTTP_REQ_HT = NULL;
+    puts("DELE");
+}
+
+/*
+void* th_valid_server(void *data)  {
+    int i;
+
+    int me = *((int *)data);
+    for (i = 0; i < 10; i++)
+    {
+        printf("%d - Got %d\n", me, i);
+        sleep(1);
+    }
+}
+*/
