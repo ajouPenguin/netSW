@@ -124,8 +124,4 @@ int main(int argc, char *argv[]) {
     mysql_close(conn);
     return 0;
 }
-<<<<<<< HEAD
-
 #endif
-=======
->>>>>>> 5903c6626440000e2d2edeb1e4df8c10641750bd
