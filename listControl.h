@@ -6,21 +6,22 @@
 #include <mysql.h>
 #include <mysql.h>
 #include <memory.h>
+#include <stdlib.h>
+#include <string.h>
 
-#define CHARMAX 255
-
-int findURL(MYSQL *mysql, char* list, char* string);
-int insertURL(MYSQL *mysql, char* list, char* serverIP);
-int deleteURL(MYSQL *mysql, char* list, char* serverIP);
-
-
-struct listItem
-{
+struct list_item_t {
     int idx;
-    char url[CHARMAX];
-    struct MYSQL_TIME date;
-    char status[8];
-	  char reason[255];
+    char *url;
+    char *cookie;
+    char *date;
+    char *status;
+	char *reason;
 };
+
+int connect_db();
+struct list_item_t *select_item(char *url, char *cookie);
+int insert_item(char *url, char *cookie);
+int update_status(int idx, const char *status);
+int update_reason(int idx, const char *reason);
 
 #endif
