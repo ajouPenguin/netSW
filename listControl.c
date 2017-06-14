@@ -1,5 +1,5 @@
 #include "listControl.h"
-
+#define __TEST__
 MYSQL *conn;
 
 const char *set_charset = "SET CHARSET utf8;";
@@ -95,3 +95,33 @@ int update_reason(int idx, const char *reason) {
     MYSQL_QUERY(query);
     return 1;
 }
+
+#ifdef __TEST__
+int main(int argc, char *argv[]) {
+    struct list_item_t *x = NULL;
+    connect_db();
+
+    x = select_item(argv[1], argv[2]);
+
+    if (x == NULL) {
+        insert_item(argv[1], argv[2]);
+
+        x = select_item(argv[1], argv[2]);
+        printf("%d %s\n", x->idx, x->status);
+
+        update_status(x->idx, "WHITE");
+        free(x);
+
+        x = select_item(argv[1], argv[2]);
+        printf("%d %s\n", x->idx, x->status);
+    } else {
+        printf("%s\n", x->status);
+    }
+
+    free(x);
+
+
+    mysql_close(conn);
+    return 0;
+}
+#endif

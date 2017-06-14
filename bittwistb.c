@@ -1,10 +1,5 @@
 #include "bittwistb.h"
 #include "pktcheck.h"
-#include "listControl.h"
-#include <pthread.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
 
 char *program_name;
 
@@ -22,9 +17,6 @@ struct ether_addr *bridge_addr[PORT_MAX]; /* storage for local MAC */
 const u_char ether_bcast[ETHER_ADDR_LEN] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 };
-
-pthread_t p_thread;
-int thread_id;
 
 /* stats */
 static u_int pkts_sent = 0;
@@ -352,7 +344,7 @@ void bridge_fwd(u_char *port, const struct pcap_pkthdr *header, const u_char *pk
             }
         }
     }
-/*
+
     if (outport != 0) {
         switch(check_packet(outport, header, (u_char *) pkt_data)) {
             case 1: // on blacklist
@@ -369,19 +361,7 @@ void bridge_fwd(u_char *port, const struct pcap_pkthdr *header, const u_char *pk
                     pkt_data, header->caplen
                 );
         }
-    }*/
-
-    if (outport != 0) {
-        thread_id = pthread_create(&p_thread, NULL, sandbox, (void *)&pkt_data);
-        
-        if(thread_id < 0)
-        {
-            fprintf(stderr, "pthread_create error\n");
-        }
-
-        pthread_detach(thread_id);
     }
-
     free(eth_hdr); eth_hdr = NULL;
     return;
 }
@@ -613,31 +593,4 @@ void usage(void)
     " -h             Print version information and usage.\n",
     program_name, BITTWISTB_VERSION, pcap_lib_version(), program_name, PORT_MIN, PORT_MAX);
     exit(EXIT_SUCCESS);
-}
-
-void *sandbox(void *arg)
-{
-    u_char *pkt_data = (u_char*)arg;
-    struct list_item_t *items;
-
-    /*if(!connect_db())
-    {
-        return;
-    }*/
-    //items = select_item();	// url, cookies
-
-    if(items == NULL)
-    {
-       // Pi2sandbox();		// client code
-    }
-    else
-    {
-        /*
-            1. check black or white
-            2-1. if date time is over then run Pi2sandbox();
-            3-1. if list exists in black, block packet and display block to client.
-            3-2. if list exists in white, send to ISP.
-        */
-    }
-    return;
 }
