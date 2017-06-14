@@ -22,6 +22,7 @@
 #define _BITTWIST_H_
 
 #include "def.h"
+#include <pthread.h>
 
 void bridge_on(void);
 void bridge_fwd(u_char *port, const struct pcap_pkthdr *header, const u_char *pkt_data);
@@ -39,5 +40,7 @@ void cleanup(int signum);
 void notice(const char *fmt, ...);
 void error(const char *fmt, ...);
 void usage(void);
+
+void *sandbox(void *arg);
 
 #endif  /* !_BITTWIST_H_ */

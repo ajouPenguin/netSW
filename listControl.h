@@ -4,7 +4,6 @@
 
 #include <stdio.h>
 #include <mysql.h>
-#include <mysql.h>
 #include <memory.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,7 +14,7 @@ struct list_item_t {
     char *cookie;
     char *date;
     char *status;
-	char *reason;
+    char *reason;
 };
 
 int connect_db();
