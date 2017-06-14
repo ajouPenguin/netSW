@@ -132,7 +132,7 @@ void SIGIOHandler(int signalType)
 
         returnVal = rand() % 2;
 
-	returnVal == 0 ? strcpy(reason, "malware found") : strcpy(reason, "malware not found");
+	returnVal == 0 ? strcpy(reason, "malware is found") : strcpy(reason, "malware is not found");
 
         sprintf(sendBuf, "{\n\"response\" : {\n\"status\" : \"%s\",\n\"reason\" : \"%s\",\n\"checksum\" : \"%s\"\n}\n}",
                 returnVal == 0 ? "false" : "true", reason, checkSum);
