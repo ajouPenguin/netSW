@@ -9,140 +9,112 @@
 #include <signal.h>     /* for signal() and SIGALRM */
 #include <time.h>
 
-#define BUFSIZE 500
 
 void UseIdleTime();                     /* Function to use idle time */
 void SIGIOHandler(int signalType);      /* Function to handle SIGIO */
 
 int sock;
 
-int main()
-{
-  struct sockaddr_in echoServAddr; /* Server address */
-  unsigned short echoServPort;     /* Server port */
-  struct sigaction handler;        /* Signal handling action definition */
+int main() {
+    struct sockaddr_in echoServAddr; /* Server address */
+    unsigned short echoServPort;     /* Server port */
+    struct sigaction handler;        /* Signal handling action definition */
 
-  printf("Enter listening port : ");
-  scanf("%hd", &echoServPort);
+    /*
+    printf("Enter listening port : ");
+    scanf("%hd", &echoServPort);
+    */
+    echoServPort = 9700;
 
-  if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-  {
-    fprintf(stderr, "Socket open error! Please restart later...\n");
-    exit(1);
-  }
+    if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+        fprintf(stderr, "Socket open error! Please restart later...\n");
+        exit(1);
+    }
 
-  memset(&echoServAddr, 0, sizeof(echoServAddr));   /* Zero out structure */
-  echoServAddr.sin_family = AF_INET;                /* Internet family */
-  echoServAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* Any incoming interface */
-  echoServAddr.sin_port = htons(echoServPort);      /* Port */
+    memset(&echoServAddr, 0, sizeof(echoServAddr));   /* Zero out structure */
+    echoServAddr.sin_family = AF_INET;                /* Internet family */
+    echoServAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* Any incoming interface */
+    echoServAddr.sin_port = htons(echoServPort);      /* Port */
 
-  if (bind(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0)
-  {
-    fprintf(stderr, "Socket binding error! Please restart later...\n");
-    exit(1);
-  }
+    if (bind(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0) {
+        fprintf(stderr, "Socket binding error! Please restart later...\n");
+        exit(1);
+    }
 
-  /* Set signal handler for SIGIO */
-  handler.sa_handler = SIGIOHandler;
-  /* Create mask that mask all signals */
-  if (sigfillset(&handler.sa_mask) < 0)
-  {
-    fprintf(stderr, "sigfillset() fuction error! Please restart later...\n");
-    exit(1);
-  }
-  /* No flags */
-  handler.sa_flags = 0;
+    /* Set signal handler for SIGIO */
+    handler.sa_handler = SIGIOHandler;
+    /* Create mask that mask all signals */
+    if (sigfillset(&handler.sa_mask) < 0) {
+        fprintf(stderr, "sigfillset() fuction error! Please restart later...\n");
+        exit(1);
+    }
+    /* No flags */
+    handler.sa_flags = 0;
 
-  if (sigaction(SIGIO, &handler, 0) < 0)
-  {
-    fprintf(stderr, "Signal action failed! Please restart later...\n");
-    exit(1);
-  }
-  /* We must own the socket to receive the SIGIO message */
-  if (fcntl(sock, F_SETOWN, getpid()) < 0)
-  {
-    fprintf(stderr, "Unable to set process owner to us...\n");
-    exit(1);
-  }
+    if (sigaction(SIGIO, &handler, 0) < 0) {
+        fprintf(stderr, "Signal action failed! Please restart later...\n");
+        exit(1);
+    }
+    /* We must own the socket to receive the SIGIO message */
+    if (fcntl(sock, F_SETOWN, getpid()) < 0) {
+        fprintf(stderr, "Unable to set process owner to us...\n");
+        exit(1);
+    }
 
-  /* Arrange for nonblocking I/O and SIGIO delivery */
-  if (fcntl(sock, F_SETFL, O_NONBLOCK | FASYNC) < 0)
-  {
-    fprintf(stderr, "Unable to put client sock into non-blocking/async mode...\n");
-    exit(1);
-  }
-  /* Go off and do real work; echoing happens in the background */
+    /* Arrange for nonblocking I/O and SIGIO delivery */
+    if (fcntl(sock, F_SETFL, O_NONBLOCK | FASYNC) < 0) {
+        fprintf(stderr, "Unable to put client sock into non-blocking/async mode...\n");
+        exit(1);
+    }
+    /* Go off and do real work; echoing happens in the background */
 
-  for (;;)
-      UseIdleTime();
+    for (;;) UseIdleTime();
 
 
-  return 0;
+    return 0;
 }
 
-void UseIdleTime()
-{
+void UseIdleTime() {
     printf(".\n");
     sleep(3);     /* 3 seconds of activity */
 }
 
-void SIGIOHandler(int signalType)
-{
+void SIGIOHandler(int signalType) {
     struct sockaddr_in echoClntAddr;  /* Address of datagram source */
     unsigned int clntLen;             /* Address length */
     int recvMsgSize, i;                  /* Size of datagram */
-    char buffer[BUFSIZE] = {0};         /* Datagram buffer */
-    char sendBuf[BUFSIZE] = {0};
-    char* host;
-    char* cookies;
+    char buffer[BUFSIZ];         /* Datagram buffer */
+    char url[BUFSIZ], cookie[BUFSIZ];
     int returnVal = 0;
-    char reason[25];
-    char *checkSum = "a531912d4dfb12a451faeed";
-
     srand(time(NULL));
 
     clntLen = sizeof(echoClntAddr);
 
-    if ((recvMsgSize = recvfrom(sock, buffer, BUFSIZE, 0,
-           (struct sockaddr *) &echoClntAddr, &clntLen)) < 0)
-    {
+    memset(buffer, 0, BUFSIZ);
+    if ((recvMsgSize = recvfrom(sock, buffer, BUFSIZ, 0, (struct sockaddr *) &echoClntAddr, &clntLen)) < 0) {
         /* Only acceptable error: recvfrom() would have blocked */
-        fprintf(stderr, "recvfrom() error!\n");
+        perror("recvfrom error");
+        return;
     }
-    else
-    {
-        host = strchr(buffer, 'h');
-        cookies = strchr(buffer, ',');
-        cookies += 14;
+    printf("Handling client %s\n", inet_ntoa(echoClntAddr.sin_addr));
 
-        printf("host : ");
-        for(i = 0; host[i] != '\"'; i++)
-        {
-          printf("%c", host[i]);
-        }
+    memset(url, 0, BUFSIZ);
+    memset(cookie, 0, BUFSIZ);
 
-        printf("\ncookies : ");
-        for(i = 0; cookies[i] != '\"'; i++)
-        {
-          printf("%c", cookies[i]);
-        }
-        printf("\n");
+    sscanf(buffer, "{\"url\":\"%[^\"]\",\"cookie\":\"%[^\"]\"}", url, cookie);
 
-        printf("Handling client %s\n", inet_ntoa(echoClntAddr.sin_addr));
+    puts(buffer);
 
-        returnVal = rand() % 2;
+    returnVal = rand() % 2;
 
-	returnVal == 0 ? strcpy(reason, "malware is found") : strcpy(reason, "malware is not found");
+    memset(buffer, 0, BUFSIZ);
+    sprintf(buffer, "{\"url\":\"%s\",\"cookie\":\"%s\",\"status\":\"%s\",\"reason\":\"%s\"}", url, cookie, returnVal? "WHITE": "BLACK", returnVal? "": "MALWARE FOUND");
+    puts(buffer);
 
-        sprintf(sendBuf, "{\n\"response\" : {\n\"status\" : \"%s\",\n\"reason\" : \"%s\",\n\"checksum\" : \"%s\"\n}\n}",
-                returnVal == 0 ? "false" : "true", reason, checkSum);
-
-        if (sendto(sock, sendBuf, sizeof(sendBuf), 0, (struct sockaddr *)
-              &echoClntAddr, sizeof(echoClntAddr)) != sizeof(sendBuf))
-        {
-            fprintf(stderr, "sendto() error!\n");
-        }
-
+    i = strlen(buffer);
+    if (sendto(sock, buffer, i, 0, (struct sockaddr *) &echoClntAddr, sizeof(echoClntAddr)) != i) {
+        perror("recvfrom error");
     }
+
     /* Nothing left to receive */
 }
