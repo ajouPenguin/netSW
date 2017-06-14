@@ -21,6 +21,7 @@ struct http_request_t {
     struct pkt_set_t *pkt;
     struct pkt_set_t *pkt_last;
     int o;
+    int s;
     u_char *msg;
 };
 

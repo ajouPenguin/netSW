@@ -1,5 +1,5 @@
 #include "listControl.h"
-#define __TEST__
+/* #define __TEST__ */
 MYSQL *conn;
 
 const char *set_charset = "SET CHARSET utf8;";

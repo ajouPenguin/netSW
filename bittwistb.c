@@ -1,5 +1,6 @@
 #include "bittwistb.h"
 #include "pktcheck.h"
+#include "listControl.h"
 
 char *program_name;
 
@@ -31,6 +32,8 @@ int main(int argc, char **argv) {
     pcap_if_t *devptr;
     int i, j;
     char *devices = NULL;
+
+    if (argc < 2) { usage(); exit(-1); }
 
     if ((cp = strrchr(argv[0], '/')) != NULL)
     program_name = cp + 1;
@@ -67,7 +70,7 @@ int main(int argc, char **argv) {
     }
     */
     ++vflag;
-    devices = "eth0,eth1";
+    devices = argv[1];
 
     if (devices == NULL) error("interfaces not specified");
 
@@ -120,6 +123,8 @@ int main(int argc, char **argv) {
 
     if (gettimeofday(&start, NULL) == -1)
     notice("gettimeofday(): %s", strerror(errno));
+
+    connect_db();
 
     bridge_on(); /* run bridge */
 

@@ -91,6 +91,7 @@ pkt->next = NULL;
 
             cur->pkt = cur->pkt_last = pkt;
             cur->o = o;
+            cur->s = s;
             cur->msg = msg;
 
             CUR_HTTP_REQ_HT = cur;
@@ -109,6 +110,7 @@ pkt->next = NULL;
             cur->pkt_last->next = pkt;
             cur->pkt_last = pkt;
             /* cur->o = o; // maybe same o */
+            /* cur->s = s; // maybe same s */
 
             msg = cur->msg;
             msg = realloc(msg, strlen(msg) + remain + 1);
@@ -132,8 +134,8 @@ pkt->next = NULL;
         /*hexdump(msg, strlen(msg));*/
         a = b = NULL;
         parse_http_header(&a, &b, msg);
-        if (a != NULL) { puts(a); free(a); }
-        if (b != NULL) { puts(b); free(b); }
+        if (a != NULL) { puts(a); } else { a = ""; }
+        if (b != NULL) { puts(b); } else { b = ""; }
 
         item = select_item(a, b);
 
@@ -141,15 +143,21 @@ pkt->next = NULL;
             pthread_t th;
             struct thread_arg_t *arg;
             insert_item(a, b);
-            //pi2sand(cur_idx, a, b);
             arg = (struct thread_arg_t *) malloc(1 * sizeof(struct thread_arg_t));
+            arg->cur_idx = cur_idx;
+            arg->url = a;
+            arg->cookie = b;
+
             pthread_create(&th, NULL, pi2sand, (void *) arg);
+            //pi2sand(arg);
             return 1;
         }
 
         return process_by_list(cur_idx, item->status);
         /* del_http_req_ht(cur_idx); */
     }
+
+    return 1;
 
     end:
     return 0;
@@ -252,20 +260,20 @@ void del_http_req_ht(int cur_idx) {
     puts("DELE");
 }
 
-
-
 int process_by_list(int cur_idx, char *status) {
     struct http_request_t *cur;
     struct pkt_set_t *ptr;
+    struct ether_header eth_hdr;
 
     cur = CUR_HTTP_REQ_HT;
     if (strcmp(status, "WHITE") == 0) {
         ptr = cur->pkt;
         while (ptr != NULL) {
-            send_packets(o, s,
+            memcpy(&eth_hdr, ptr->p, ETHER_HDR_LEN);
+            send_packets(cur->o, cur->s,
                 (const struct ether_addr *) eth_hdr.ether_dhost,
                 (const struct ether_addr *) eth_hdr.ether_shost,
-                p, h->caplen
+                ptr->p, ptr->h->caplen
             );
             ptr = ptr->next;
         }
