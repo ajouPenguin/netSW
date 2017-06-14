@@ -1,6 +1,7 @@
 #include "pktcheck.h"
 #include "listControl.h"
 #include "bittwistb.h"
+#include "pi2srv.h"
 
 struct http_request *http_req_ht[HTTP_REQ_HT_SIZE];
 #define CUR_HTTP_REQ_HT (http_req_ht[cur_idx])
@@ -60,7 +61,7 @@ if (remain == 0) return o;
 pkt = (struct pkt_set_t *) malloc(sizeof(struct pkt_set_t) * 1); \
 pkt->h = h; \
 pkt->p = p; \
-pkt->next = NULL; \
+pkt->next = NULL;
     if (CHECK_TCP_FLAG(TH_SYN) || CHECK_TCP_FLAG(TH_FIN) || CHECK_TCP_FLAG(TH_RST)) {
         goto end;
     }
@@ -137,32 +138,16 @@ pkt->next = NULL; \
         item = select_item(a, b);
 
         if (item == NULL) {
+            pthread_t th;
+            struct thread_arg_t *arg;
             insert_item(a, b);
-
-            // send to sandbox
-
+            //pi2sand(cur_idx, a, b);
+            arg = (struct thread_arg_t *) malloc(1 * sizeof(struct thread_arg_t));
+            pthread_create(&th, NULL, pi2sand, (void *) arg);
             return 1;
         }
 
-        if (strcmp(item->status, "WHITE") == 0) {
-            ptr = cur->pkt;
-            while (ptr != NULL) {
-                send_packets(o, s,
-                    //(const struct ether_addr *)eth_hdr->ether_dhost,
-                    (const struct ether_addr *)eth_hdr.ether_dhost,
-                    //(const struct ether_addr *)eth_hdr->ether_shost,
-                    (const struct ether_addr *) eth_hdr.ether_shost,
-                    p, h->caplen
-                );
-                ptr = ptr->next;
-            }
-            del_http_req_ht(cur_idx);
-        } else if (strcmp(item->status, "BLACK") == 0) {
-            del_http_req_ht(cur_idx);
-            return 1;
-        } else if (strcmp(item->status, "PENDDING") == 0) {
-            return 1;
-        }
+        return process_by_list(cur_idx, item->status);
         /* del_http_req_ht(cur_idx); */
     }
 
@@ -269,16 +254,25 @@ void del_http_req_ht(int cur_idx) {
 
 
 
+int process_by_list(int cur_idx, char *status) {
+    struct http_request_t *cur;
+    struct pkt_set_t *ptr;
 
-/*
-void* th_valid_server(void *data)  {
-    int i;
-
-    int me = *((int *)data);
-    for (i = 0; i < 10; i++)
-    {
-        printf("%d - Got %d\n", me, i);
-        sleep(1);
+    cur = CUR_HTTP_REQ_HT;
+    if (strcmp(status, "WHITE") == 0) {
+        ptr = cur->pkt;
+        while (ptr != NULL) {
+            send_packets(o, s,
+                (const struct ether_addr *) eth_hdr.ether_dhost,
+                (const struct ether_addr *) eth_hdr.ether_shost,
+                p, h->caplen
+            );
+            ptr = ptr->next;
+        }
+        del_http_req_ht(cur_idx);
+        return 1;
+    } else if (strcmp(status, "BLACK") == 0) {
+        del_http_req_ht(cur_idx);
+        return 2;
     }
 }
-*/

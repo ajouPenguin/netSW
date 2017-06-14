@@ -25,8 +25,7 @@ static u_int failed = 0;
 struct timeval start = {0,0};
 struct timeval end = {0,0};
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     char *cp;
     int c;
     pcap_if_t *devptr;
@@ -39,6 +38,7 @@ int main(int argc, char **argv)
     program_name = argv[0];
 
     /* process options */
+    /*
     while ((c = getopt(argc, argv, "di:vh")) != -1) {
         switch (c) {
             case 'd':
@@ -65,6 +65,9 @@ int main(int argc, char **argv)
             usage();
         }
     }
+    */
+    ++vflag;
+    devices = "eth0,eth1";
 
     if (devices == NULL) error("interfaces not specified");
 
