@@ -96,7 +96,7 @@ void SIGIOHandler(int signalType)
     char* host;
     char* cookies;
     int returnVal = 0;
-    char reason[20];
+    char reason[25];
     char *checkSum = "a531912d4dfb12a451faeed";
 
     srand(time(NULL));
