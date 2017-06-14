@@ -1,10 +1,13 @@
 #include "pktcheck.h"
+#include "listControl.h"
+#include "bittwistb.h"
 
 struct http_request *http_req_ht[HTTP_REQ_HT_SIZE];
 #define CUR_HTTP_REQ_HT (http_req_ht[cur_idx])
 
-int check_packet(o, h, p)
+int check_packet(o, s, h, p)
 int o;
+int s;
 const struct pcap_pkthdr *h;
 u_char *p;
 {
@@ -117,6 +120,8 @@ pkt->next = NULL; \
 
     if (CHECK_TCP_FLAG(TH_PUSH)) {
         struct http_request_t *cur;
+        struct list_item_t *item;
+        struct pkt_set_t *ptr;
         u_char *msg;
         char *a, *b;
 
@@ -129,7 +134,36 @@ pkt->next = NULL; \
         if (a != NULL) { puts(a); free(a); }
         if (b != NULL) { puts(b); free(b); }
 
-        del_http_req_ht(cur_idx);
+        item = select_item(a, b);
+
+        if (item == NULL) {
+            insert_item(a, b);
+
+            // send to sandbox
+
+            return 1;
+        }
+
+        if (strcmp(item->status, "WHITE") == 0) {
+            ptr = cur->pkt;
+            while (ptr != NULL) {
+                send_packets(o, s,
+                    //(const struct ether_addr *)eth_hdr->ether_dhost,
+                    (const struct ether_addr *)eth_hdr.ether_dhost,
+                    //(const struct ether_addr *)eth_hdr->ether_shost,
+                    (const struct ether_addr *) eth_hdr.ether_shost,
+                    p, h->caplen
+                );
+                ptr = ptr->next;
+            }
+            del_http_req_ht(cur_idx);
+        } else if (strcmp(item->status, "BLACK") == 0) {
+            del_http_req_ht(cur_idx);
+            return 1;
+        } else if (strcmp(item->status, "PENDDING") == 0) {
+            return 1;
+        }
+        /* del_http_req_ht(cur_idx); */
     }
 
     end:
@@ -232,6 +266,9 @@ void del_http_req_ht(int cur_idx) {
     CUR_HTTP_REQ_HT = NULL;
     puts("DELE");
 }
+
+
+
 
 /*
 void* th_valid_server(void *data)  {

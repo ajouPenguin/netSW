@@ -13,7 +13,7 @@ struct blacklist_t {
     u_short port_dst;
 };
 
-int check_packet(int o, const struct pcap_pkthdr *h, u_char *p);
+int check_packet(int o, int s, const struct pcap_pkthdr *h, u_char *p);
 void hexdump(const void* data, size_t size);
 void parse_http_header(char **url, char **cookie, char *data);
 int32_t JumpConsistentHash(uint64_t key, int32_t num_buckets);

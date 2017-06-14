@@ -19,6 +19,12 @@ if (mysql_query(conn, (q))) { \
     return 0; \
 }
 
+#define CHECK_MYSQL_CONNECT \
+if (conn == NULL) { \
+    puts("mysql is not connected"); \
+    return NULL; \
+}
+
 int connect_db() {
 
     conn = mysql_init(NULL);
@@ -32,10 +38,6 @@ int connect_db() {
     MYSQL_QUERY(create_table);
     return 1;
 }
-#define STRDUP(x, y)\
-r = (char *) malloc((strlen(y) + 1) * sizeof(char)); \
-strcpy(r, y); \
-x = r;
 
 struct list_item_t *select_item(char *url, char *cookie) {
     char *query, *r;
@@ -43,6 +45,8 @@ struct list_item_t *select_item(char *url, char *cookie) {
     MYSQL_ROW row;
     struct list_item_t *ret = NULL;
     int i, fields;
+
+    CHECK_MYSQL_CONNECT;
 
     query = (char *) malloc((112 + strlen(url) + strlen(cookie)) * sizeof(char));
     sprintf(query, "SELECT * FROM `graylist` WHERE url='%s' AND cookie='%s' AND unix_timestamp()-6*60*60<unix_timestamp(date);", url, cookie);
@@ -69,32 +73,36 @@ struct list_item_t *select_item(char *url, char *cookie) {
 
 int insert_item(char *url, char *cookie) {
     char *query;
+    CHECK_MYSQL_CONNECT;
     query = (char *) malloc((68 + strlen(url) + strlen(cookie)) * sizeof(char));
     sprintf(query, "INSERT INTO `graylist` VALUES(NULL, '%s', '%s', NOW(), 'PENDDING', '');", url, cookie);
     MYSQL_QUERY(query);
     return 1;
 }
+
 int digit(int a) {
     int i;
     for (i = 0; a != 0; a /= 10, ++i);
     return i;
 }
 
-int update_status(int idx, const char *status) {
+int update_item(int idx, const char *col, const char *val) {
     char *query;
-    query = (char *) malloc((48 + strlen(status) + digit(idx)) * sizeof(char));
-    sprintf(query, "UPDATE `graylist` SET `status`='%s' WHERE `idx`=%d;", status, idx);
+    CHECK_MYSQL_CONNECT;
+    query = (char *) malloc((42 + strlen(col) + strlen(val) + digit(idx)) * sizeof(char));
+    sprintf(query, "UPDATE `graylist` SET `%s`='%s' WHERE `idx`=%d;", col, val, idx);
     MYSQL_QUERY(query);
     return 1;
 }
 
-int update_reason(int idx, const char *reason) {
-    char *query;
-    query = (char *) malloc((48 + strlen(reason) + digit(idx)) * sizeof(char));
-    sprintf(query, "UPDATE `graylist` SET `reason`='%s' WHERE `idx`=%d;", reason, idx);
-    MYSQL_QUERY(query);
-    return 1;
+int update_status(int idx, const char *status) {
+    return update_item(idx, "status", status);
 }
+
+int update_reason(int idx, const char *reason) {
+    return update_item(idx, "reason", reason);
+}
+
 
 #ifdef __TEST__
 int main(int argc, char *argv[]) {

@@ -109,8 +109,7 @@ int main(int argc, char **argv)
         cp = (char *)strtok(NULL, ",");
         ++i;
     }
-    if (i < PORT_MIN)
-    error("invalid interfaces specification");
+    if (i < PORT_MIN) error("invalid interfaces specification");
     pd_count = i; /* number of pcap descriptors that we have actually created */
 
     /* set signal handler for SIGINT (Control-C) */
@@ -119,40 +118,12 @@ int main(int argc, char **argv)
     if (gettimeofday(&start, NULL) == -1)
     notice("gettimeofday(): %s", strerror(errno));
 
-/*
-blist[0].ip_src = inet_addr("192.168.222.0");
-blist[0].ip_dst = inet_addr("192.168.222.102");
-blist[0].ip_src_mask = inet_addr("255.255.255.0");
-blist[0].ip_dst_mask = inet_addr("255.255.255.255");
-blist[0].l4_proto = IPPROTO_TCP;
-blist[0].port_src = 0xFFFF;
-blist[0].port_dst = 33333;
+    bridge_on(); /* run bridge */
 
-blist[1].ip_src = inet_addr("192.168.222.0");
-blist[1].ip_dst = inet_addr("192.168.222.102");
-blist[1].ip_src_mask = inet_addr("255.255.255.0");
-blist[1].ip_dst_mask = inet_addr("255.255.255.255");
-blist[1].l4_proto = IPPROTO_ICMP;
-blist[1].port_src = 0xFFFF;
-blist[1].port_dst = 0xFFFF;
-
-blist[2].ip_src = inet_addr("192.168.222.0");
-blist[2].ip_dst = inet_addr("192.168.222.102");
-blist[2].ip_src_mask = inet_addr("255.255.255.0");
-blist[2].ip_dst_mask = inet_addr("255.255.255.255");
-blist[2].l4_proto = IPPROTO_UDP;
-blist[2].port_src = 0xFFFF;
-blist[2].port_dst = 33334;
-
-blist_size = 3;
-*/
-bridge_on(); /* run bridge */
-
-exit(EXIT_SUCCESS);
+    exit(EXIT_SUCCESS);
 }
 
-void bridge_on(void)
-{
+void bridge_on(void) {
     /*
     * struct pollfd {
     *     int    fd;      -> file descriptor
@@ -346,6 +317,7 @@ void bridge_fwd(u_char *port, const struct pcap_pkthdr *header, const u_char *pk
     }
 
     if (outport != 0) {
+        /*
         switch(check_packet(outport, header, (u_char *) pkt_data)) {
             case 1: // on blacklist
                 break;
@@ -360,6 +332,15 @@ void bridge_fwd(u_char *port, const struct pcap_pkthdr *header, const u_char *pk
                     (const struct ether_addr *)eth_hdr->ether_shost,
                     pkt_data, header->caplen
                 );
+        }
+        */
+        if (check_packet(outport, sport, header, (u_char *) pkt_data) == 0) {
+            send_packets(outport,
+                sport,
+                (const struct ether_addr *)eth_hdr->ether_dhost,
+                (const struct ether_addr *)eth_hdr->ether_shost,
+                pkt_data, header->caplen
+            );
         }
     }
     free(eth_hdr); eth_hdr = NULL;
