@@ -1,6 +1,26 @@
+/*
+ * bittwistb - pcap based ethernet bridge
+ * Copyright (C) 2007 Addy Yeow Chin Heng <ayeowch@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ *
+ */
+
 #include "bittwistb.h"
-#include "pktcheck.h"
-#include "listControl.h"
+#include "pktcheck.h"       // for check_packet
+#include "listControl.h"    // for connect_db
 
 char *program_name;
 
@@ -35,67 +55,36 @@ int main(int argc, char **argv) {
 
     if (argc < 2) { usage(); exit(-1); }
 
-    if ((cp = strrchr(argv[0], '/')) != NULL)
-    program_name = cp + 1;
-    else
-    program_name = argv[0];
-
-    /* process options */
-    /*
-    while ((c = getopt(argc, argv, "di:vh")) != -1) {
-        switch (c) {
-            case 'd':
-            if (pcap_findalldevs(&devptr, ebuf) < 0)
-            error("%s", ebuf);
-            else {
-                for (i = 0; devptr != 0; i++) {
-                    (void)printf("%d. %s", i + 1, devptr->name);
-                    if (devptr->description != NULL)
-                    (void)printf(" (%s)", devptr->description);
-                    (void)putchar('\n');
-                    devptr = devptr->next;
-                }
-            }
-            exit(EXIT_SUCCESS);
-            case 'i':
-            devices = optarg;
-            break;
-            case 'v':
-            ++vflag;
-            break;
-            case 'h':
-            default:
-            usage();
-        }
-    }
-    */
-    ++vflag;
+    program_name = ((cp = strrchr(argv[0], '/')) != NULL)? cp + 1: argv[0];
     devices = argv[1];
+    ++vflag;
 
     if (devices == NULL) error("interfaces not specified");
 
     cp = (char *)strtok(devices, ",");
     i = 0;
     while (cp != NULL) {
-        if (i >= PORT_MAX)
-        error("invalid interfaces specification");
+        if (i >= PORT_MAX) error("invalid interfaces specification");
 
         /* empty error buffer to grab warning message (if exist) from pcap_open_live() below */
         *ebuf = '\0';
 
         /* create a pcap descriptor for each interface to capture packets */
-        pd[i] = pcap_open_live(cp,
-            ETHER_MAX_LEN, /* portion of packet to capture */
-            1,             /* promiscuous mode is on */
-            1,             /* read timeout, in milliseconds */
-            ebuf
-        );
+        pd[i] = pcap_open_live(cp, ETHER_MAX_LEN, 1, 1, ebuf);
+        /*
+            device - device name
+            snaplen - portion of packet to capture
+            promisc - promiscuous mode is on
+            to_ms - read timeout, in milliseconds
+            errbuf - error buffer
+        */
         if (pd[i] == NULL)
-        error("%s", ebuf);
+            error("%s", ebuf);
         else if (*ebuf)
-        notice("%s", ebuf); /* warning message from pcap_open_live() above */
+            notice("%s", ebuf);
+        /* warning message from pcap_open_live() above */
 
-        bridge_addr[i] = (struct ether_addr *)malloc(sizeof(struct ether_addr));
+        bridge_addr[i] = (struct ether_addr *) malloc(sizeof(struct ether_addr));
         if (bridge_addr[i] == NULL)
         error("malloc(): cannot allocate memory for bridge_addr[%d]", i);
 
@@ -124,13 +113,15 @@ int main(int argc, char **argv) {
     if (gettimeofday(&start, NULL) == -1)
     notice("gettimeofday(): %s", strerror(errno));
 
-    connect_db();
+    connect_db(); /* connect db */
 
     bridge_on(); /* run bridge */
 
     exit(EXIT_SUCCESS);
 }
 
+// Start bridge function. Create alarm signal for manage
+// bridge table that has mac address and outport. ...
 void bridge_on(void) {
     /*
     * struct pollfd {
@@ -174,10 +165,10 @@ void bridge_on(void) {
         (void)sigprocmask(SIG_BLOCK, &block_sig, NULL);
 
         /* poll for a packet on all the initialized pd */
-        poll_ret = poll(pcap_poll,  /* array of pollfd structures */
-            pd_count,   /* size of pcap_poll array */
-            1
-        );         /* timeout, in milliseconds */
+        poll_ret = poll(pcap_poll, pd_count, 1);
+        /* array of pollfd structures */
+        /* size of pcap_poll array */
+        /* timeout, in milliseconds */
 
         /* release SIGALRM */
         (void)sigprocmask(SIG_UNBLOCK, &block_sig, NULL);
@@ -186,11 +177,13 @@ void bridge_on(void) {
         if (poll_ret > 0) {
             for (i = 0; i < pd_count; i++) {
                 if (pcap_poll[i].revents > 0) {
-                    ret = pcap_dispatch(pd[i],                    /* pcap descriptor */
-                        -1,                       /* -1 -> process all packets */
-                        (pcap_handler)bridge_fwd, /* callback function */
-                        (u_char *)(i + 1)
-                    );       /* LAN segment or port (first port is 1 not 0) */
+                    ret = pcap_dispatch(pd[i], -1, (pcap_handler)bridge_fwd, (u_char *)(i + 1));
+                    /*
+                        p - pcap descriptor
+                        cnt - -1 -> process all packets
+                        callback - callback function
+                        user - LAN segment or port (first port is 1 not 0)
+                    */
                     /* ret = number of packets read */
                     if (ret == 0)
                     /* we came in from poll(), timeout is unlikely */
@@ -214,6 +207,7 @@ void bridge_on(void) {
     }
 }
 
+// Actual fowarding function
 void bridge_fwd(u_char *port, const struct pcap_pkthdr *header, const u_char *pkt_data) {
     struct ether_header *eth_hdr;
     int index; /* hash table index */
@@ -325,42 +319,23 @@ void bridge_fwd(u_char *port, const struct pcap_pkthdr *header, const u_char *pk
     }
 
     if (outport != 0) {
-        /*
-        switch(check_packet(outport, header, (u_char *) pkt_data)) {
-            case 1: // on blacklist
-                break;
-            case 2: // on whitelist
-                break;
-            case 3: // on sand to sandbox
-                break;
-            default:
-                send_packets(outport,
-                    sport,
-                    (const struct ether_addr *)eth_hdr->ether_dhost,
-                    (const struct ether_addr *)eth_hdr->ether_shost,
-                    pkt_data, header->caplen
-                );
-        }
-        */
+        // check packet wheather http packet or not (this part is added)
         if (check_packet(outport, sport, header, (u_char *) pkt_data) == 0) {
-            send_packets(outport,
-                sport,
-                (const struct ether_addr *)eth_hdr->ether_dhost,
-                (const struct ether_addr *)eth_hdr->ether_shost,
-                pkt_data, header->caplen
-            );
+            // if no http packet, relay packet
+            send_packets(outport, sport, (const struct ether_addr *)eth_hdr->ether_dhost, (const struct ether_addr *)eth_hdr->ether_shost, pkt_data, header->caplen);
         }
     }
     free(eth_hdr); eth_hdr = NULL;
     return;
 }
 
+// Send packet that recognized to be relay
 void send_packets(outport, sport, ether_dhost, ether_shost, pkt_data, pkt_len)
-int outport;
-int sport;
-const struct ether_addr *ether_dhost;
-const struct ether_addr *ether_shost;
-const u_char *pkt_data;
+int outport;        // destination port
+int sport;          // source port
+const struct ether_addr *ether_dhost;   // destination mac address
+const struct ether_addr *ether_shost;   // source mac address
+const u_char *pkt_data; // whole packet content
 int pkt_len;
 {
     int start, end;
@@ -430,8 +405,8 @@ int pkt_len;
     (void)sigprocmask(SIG_UNBLOCK, &block_sig, NULL); /* release SIGINT */
 }
 
-void hash_alarm_handler(int signum)
-{
+void hash_alarm_handler(int signum) {
+
     int i;
 
     for (i = 0; i < HASH_SIZE; i++) {
@@ -447,8 +422,8 @@ void hash_alarm_handler(int signum)
     error("setitimer(): %s", strerror(errno));
 }
 
-int hash_alarm(unsigned int seconds)
-{
+int hash_alarm(unsigned int seconds) {
+
     struct itimerval old, new;
 
     new.it_interval.tv_usec = 0;
@@ -462,8 +437,8 @@ int hash_alarm(unsigned int seconds)
 #ifndef SIOCGIFHWADDR
 
 #define ALLSET(flag, bits) (((flag) & (bits)) == (bits))
-int gethwaddr(struct ether_addr *ether_addr, char *device)
-{
+int gethwaddr(struct ether_addr *ether_addr, char *device) {
+
     struct ifaddrs *ifa, *ifap;
     struct sockaddr_dl *sdl;
 
@@ -489,8 +464,8 @@ int gethwaddr(struct ether_addr *ether_addr, char *device)
 }
 #else
 /* works for Linux */
-int gethwaddr(struct ether_addr *ether_addr, char *device)
-{
+int gethwaddr(struct ether_addr *ether_addr, char *device) {
+
     struct ifreq ifr;
     int fd;
 
@@ -506,8 +481,8 @@ int gethwaddr(struct ether_addr *ether_addr, char *device)
 }
 #endif
 
-void info(void)
-{
+void info(void) {
+
     struct timeval elapsed;
     float seconds;
 
@@ -523,8 +498,8 @@ void info(void)
     notice("Elapsed time = %f seconds", seconds);
 }
 
-void cleanup(int signum)
-{
+void cleanup(int signum) {
+
     if (signum == -1)
     exit(EXIT_FAILURE);
     else
@@ -539,8 +514,8 @@ void cleanup(int signum)
 *      The Regents of the University of California.  All rights reserved.
 *
 */
-void notice(const char *fmt, ...)
-{
+void notice(const char *fmt, ...) {
+
     va_list ap;
     va_start(ap, fmt);
     (void)vfprintf(stderr, fmt, ap);
@@ -552,8 +527,8 @@ void notice(const char *fmt, ...)
     }
 }
 
-void error(const char *fmt, ...)
-{
+void error(const char *fmt, ...) {
+
     va_list ap;
     (void)fprintf(stderr, "%s: ", program_name);
     va_start(ap, fmt);
@@ -567,19 +542,29 @@ void error(const char *fmt, ...)
     cleanup(-1);
 }
 
-void usage(void)
-{
-    (void)fprintf(stderr, "%s version %s\n"
+// Print how to use this program
+void usage(void) {
+    pcap_if_t *devptr;
+    int i;
+
+    (void)printf("%s version %s\n"
     "%s\n"
-    "Usage: %s [-d] [-v] [-i interfaces] [-h]\n"
-    "\nOptions:\n"
-    " -d             Print a list of network interfaces available.\n"
-    " -v             Print forwarding information including the destination\n"
-    "                and source MAC addresses of forwarded packets.\n"
-    " -i interfaces  List of comma separated Ethernet-type interfaces to bridge.\n"
-    "                Example: -i vr0,fxp0\n"
-    "                You can specify between %d to %d interfaces.\n"
-    " -h             Print version information and usage.\n",
-    program_name, BITTWISTB_VERSION, pcap_lib_version(), program_name, PORT_MIN, PORT_MAX);
+    "Usage: %s [interfaces]\n",
+    program_name, BITTWISTB_VERSION, pcap_lib_version(), program_name);
+
+    puts("Available network interfaces: ");
+    if (pcap_findalldevs(&devptr, ebuf) < 0)
+        error("%s", ebuf);
+    else {
+        for (i = 0; devptr != 0; i++) {
+            printf("%d. %s", i + 1, devptr->name);
+            if (devptr->description != NULL)
+                printf(" (%s)", devptr->description);
+            putchar('\n');
+            devptr = devptr->next;
+        }
+    }
+
+    printf("Example: %s eth0,eth1\n");
     exit(EXIT_SUCCESS);
 }
