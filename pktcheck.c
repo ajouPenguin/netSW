@@ -138,7 +138,7 @@ pkt->next = NULL;
         struct list_item_t *item;
         struct pkt_set_t *ptr;
         u_char *msg;
-        char *a, *b;	// a : url , b : cookie
+        char *url, *cookie;	// a : url , b : cookie
 
         /* check http req */
         cur = CUR_HTTP_REQ_HT;
@@ -147,26 +147,26 @@ pkt->next = NULL;
 		 * if you want to print hexdump of msg, use this code
 		 * hexdump(msg, strlen(msg));
 		 */
-        a = b = NULL;
+        url = cookie = NULL;
 		/* parse url and cookie from http data */
-        parse_http_header(&a, &b, msg);
-        if (a != NULL) { puts(a); } else { a = ""; }
-        if (b != NULL) { puts(b); } else { b = ""; }
+        parse_http_header(&url, &b, msg);
+        if (url != NULL) { puts(url); } else { url = ""; }
+        if (cookie != NULL) { puts(cookie); } else { cookie = ""; }
 
 		/* select item from db */
-        item = select_item(a, b);
+        item = select_item(url, cookie);
 
 		/* if the item is not exist in the db, validate in sandbox and return 1 ('1' is white) */
         if (item == NULL) {
             pthread_t th;
             struct thread_arg_t *arg;
 			/* insert new item into db */
-            insert_item(a, b);
+            insert_item(url, cookie);
 			/* arg for thread */
             arg = (struct thread_arg_t *) malloc(1 * sizeof(struct thread_arg_t));
             arg->cur_idx = cur_idx;
-            arg->url = a;
-            arg->cookie = b;
+            arg->url = url;
+            arg->cookie = cookie;
 
 			/* create new thread with arg and run pi2sand */
             pthread_create(&th, NULL, pi2sand, (void *) arg);
@@ -269,7 +269,6 @@ void del_http_req_ht(int cur_idx) {
     struct http_request_t *cur;
     struct pkt_set_t *pkt, *pkt2;
     u_char *msg;
-    char *a, *b;
 
     cur = CUR_HTTP_REQ_HT;
     pkt = cur->pkt;
