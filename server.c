@@ -20,10 +20,6 @@ int main() {
     unsigned short echoServPort;     /* Server port */
     struct sigaction handler;        /* Signal handling action definition */
 
-    /*
-    printf("Enter listening port : ");
-    scanf("%hd", &echoServPort);
-    */
     echoServPort = 9700;
 
     if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
@@ -43,18 +39,20 @@ int main() {
 
     /* Set signal handler for SIGIO */
     handler.sa_handler = SIGIOHandler;
+
     /* Create mask that mask all signals */
     if (sigfillset(&handler.sa_mask) < 0) {
         fprintf(stderr, "sigfillset() fuction error! Please restart later...\n");
         exit(1);
     }
+
     /* No flags */
     handler.sa_flags = 0;
-
     if (sigaction(SIGIO, &handler, 0) < 0) {
         fprintf(stderr, "Signal action failed! Please restart later...\n");
         exit(1);
     }
+
     /* We must own the socket to receive the SIGIO message */
     if (fcntl(sock, F_SETOWN, getpid()) < 0) {
         fprintf(stderr, "Unable to set process owner to us...\n");
@@ -101,6 +99,7 @@ void SIGIOHandler(int signalType) {
     memset(url, 0, BUFSIZ);
     memset(cookie, 0, BUFSIZ);
 
+    /*받은 결과를 url, cookie 각각 파싱*/
     sscanf(buffer, "{\"url\":\"%[^\"]\",\"cookie\":\"%[^\"]\"}", url, cookie);
 
     puts(buffer);
@@ -108,9 +107,12 @@ void SIGIOHandler(int signalType) {
     returnVal = rand() % 2;
 
     memset(buffer, 0, BUFSIZ);
+
+    /*보낼 형식에 맞추기위한 작업(status, reason 추가)*/
     sprintf(buffer, "{\"url\":\"%s\",\"cookie\":\"%s\",\"status\":\"%s\",\"reason\":\"%s\"}", url, cookie, returnVal? "WHITE": "BLACK", returnVal? "": "MALWARE FOUND");
     puts(buffer);
 
+    /*send to pi*/
     i = strlen(buffer);
     if (sendto(sock, buffer, i, 0, (struct sockaddr *) &echoClntAddr, sizeof(echoClntAddr)) != i) {
         perror("recvfrom error");
